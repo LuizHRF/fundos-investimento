@@ -3,3 +3,7 @@
 
 # API do portal CKAN da CVM
 ckanapi>=4.7
+
+# Fund analysis dependencies
+requests>=2.31.0
+openpyxl>=3.0.0
