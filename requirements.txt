@@ -1,0 +1,5 @@
+# CVM Fundos de Investimento - Dashboard
+# Dependências do projeto
+
+# API do portal CKAN da CVM
+ckanapi>=4.7

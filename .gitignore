@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# CVM Data Files (optional - uncomment to exclude data files from git)
+cvm_fundos_completo.json
+cvm_fundos_recursos.csv
+cvm_metadata_summary.json
+
+# State file (recommended to exclude - regenerated on each run)
+cvm_state.json
+*.state.json
+
+# Dashboard text output
+cvm_dashboard.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+.claude/
