@@ -61,13 +61,39 @@ class Colors:
 
 
 def format_timestamp(timestamp_str: str) -> str:
-    """Format ISO timestamp to human-readable format"""
+    """Format ISO timestamp to human-readable format (GMT-3)"""
     if not timestamp_str:
         return "N/A"
 
     try:
+        from datetime import timezone, timedelta
         dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        return dt.strftime('%Y-%m-%d %H:%M')
+        # If naive, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        # Convert to GMT-3 (Brazil)
+        gmt_minus_3 = timezone(timedelta(hours=-3))
+        dt_br = dt.astimezone(gmt_minus_3)
+        return dt_br.strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        return timestamp_str
+
+
+def format_timestamp_br(timestamp_str: str) -> str:
+    """Format ISO timestamp to Brazilian format (hh:mm - DD/MM/YYYY) in GMT-3"""
+    if not timestamp_str:
+        return "N/A"
+
+    try:
+        from datetime import timezone, timedelta
+        dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        # If naive, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        # Convert to GMT-3 (Brazil)
+        gmt_minus_3 = timezone(timedelta(hours=-3))
+        dt_br = dt.astimezone(gmt_minus_3)
+        return dt_br.strftime('%H:%M - %d/%m/%Y')
     except Exception:
         return timestamp_str
 
@@ -790,7 +816,7 @@ class CVMDataExtractor:
                 self._print(f"  {dataset_id:30} " +
                       f"{Colors.colorize(f'[{frequency}]', freq_color):30} " +
                       f"{num_res:>2} recursos   " +
-                      f"Atualizado: {Colors.colorize(time_ago, time_color)}")
+                      f"Atualizado: {format_timestamp_br(last_mod)} ({Colors.colorize(time_ago, time_color)})")
 
             if len(type_data['datasets']) > 10:
                 remaining = len(type_data['datasets']) - 10
