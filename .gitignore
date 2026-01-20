@@ -24,10 +24,12 @@ cvm_state.json
 # Dashboard text output
 cvm_dashboard.txt
 
-# Fund analyzer generated files
+# Comparador de fundos - arquivos gerados
+output/
 funds.db
 data_cache/
 fund_comparison.csv
+*.csv
 
 # IDE
 .vscode/

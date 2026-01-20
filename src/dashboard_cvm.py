@@ -1212,16 +1212,53 @@ def exemplo_dashboard():
     print()
 
 
+def main_dashboard(args: list = None):
+    """Função principal do dashboard CVM
+
+    Args:
+        args: Lista de argumentos de linha de comando (opcional)
+    """
+    import sys
+    if args is None:
+        args = sys.argv[1:]
+
+    if len(args) > 0:
+        if args[0] in ['--help', '-h']:
+            print("Dashboard de Monitoramento CVM - Fundos de Investimento")
+            print("\nUso: python main.py dashboard [opções]")
+            print("\nOpções:")
+            print("  --help, -h     Mostrar esta ajuda")
+            print("  --listar       Listar todos os datasets")
+            print("  --busca TERMO  Buscar datasets por termo")
+            print("  --recentes     Mostrar recursos mais recentes")
+            print("  (sem opções)   Executar dashboard completo")
+            return
+
+        elif args[0] == '--listar':
+            extractor = CVMDataExtractor()
+            extractor.list_all_datasets()
+            return
+
+        elif args[0] == '--busca' and len(args) > 1:
+            extractor = CVMDataExtractor()
+            results = extractor.search_datasets(args[1])
+            print(f"Encontrados {len(results)} datasets relacionados a '{args[1]}':")
+            for dataset in results:
+                print(f"  • {dataset['title']}")
+            return
+
+        elif args[0] == '--recentes':
+            exemplo_recursos_recentes()
+            return
+
+        else:
+            print(f"Opção desconhecida: {args[0]}")
+            print("Use --help para ver opções disponíveis")
+            return
+
+    # Execução padrão: dashboard completo
+    exemplo_dashboard()
+
+
 if __name__ == "__main__":
-    # Execute o exemplo que preferir:
-
-    # extractor = CVMDataExtractor()
-    # extractor.list_all_datasets()
-
-    # exemplo_basico()              # Resumo completo (antigo)
-    # exemplo_busca()               # Busca específica
-    # exemplo_recursos_recentes()   # Últimos arquivos
-    # exemplo_download()            # Baixar arquivo
-    # exemplo_exportacao()          # Exportar metadados (antigo)
-
-    exemplo_dashboard()             # Dashboard completo com rastreamento (RECOMENDADO)
+    main_dashboard()

@@ -48,23 +48,32 @@ pip install -r requirements.txt
 
 ### Início Rápido
 
-Simplesmente execute o script:
+O projeto oferece duas ferramentas principais através de um ponto de entrada unificado:
 
 **Linux/macOS:**
 ```bash
 source .venv/bin/activate
-python script.py
+python main.py              # Comparador de fundos (padrão)
+python main.py dashboard    # Dashboard de monitoramento
 ```
 
 **Windows:**
 ```cmd
 .venv\Scripts\activate
-python script.py
+python main.py              # Comparador de fundos (padrão)
+python main.py dashboard    # Dashboard de monitoramento
 ```
 
-### Primeira Execução
+### Comparador de Fundos (Padrão)
 
-Na primeira execução, o script irá:
+Na primeira execução do comparador, ele irá:
+- Baixar dados cadastrais e de políticas da CVM
+- Criar banco de dados local (`output/fundos.db`)
+- Exibir estatísticas e demonstração de comparação
+
+### Dashboard de Monitoramento
+
+Na primeira execução do dashboard, ele irá:
 - Buscar todos os 22 datasets da CVM (aprox. 30 segundos)
 - Criar um arquivo de estado (`cvm_state.json`)
 - Exibir o dashboard completo
@@ -238,14 +247,91 @@ Os dados são obtidos de:
 
 Este script é fornecido como está para acessar dados públicos da CVM. Os dados em si estão sujeitos à Licença de Dados Abertos da CVM (ODbL).
 
+## Comparador de Fundos (Novo!)
+
+O projeto agora inclui um sistema completo de comparação de fundos de investimento.
+
+### Funcionalidades do Comparador
+
+- **Download automático de dados**: Baixa dados cadastrais e de políticas da CVM
+- **Banco de dados local**: Armazena dados em SQLite para consultas rápidas
+- **Busca com filtros**: Filtre por situação, tipo, gestor, classe ANBIMA, patrimônio mínimo
+- **Comparação lado a lado**: Compare múltiplos fundos por CNPJ
+- **Rastreamento de mudanças**: Detecta alterações em taxas, gestores e situação
+- **Exportação CSV**: Exporte comparações para análise externa
+
+### Uso Rápido
+
+```bash
+# Executar comparador de fundos (padrão)
+python main.py
+
+# Carregar/atualizar dados da CVM
+python main.py comparar --carregar
+
+# Mostrar estatísticas dos fundos
+python main.py comparar --stats
+
+# Executar dashboard de monitoramento
+python main.py dashboard
+
+# Buscar datasets específicos (ex: FII)
+python main.py dashboard --busca FII
+```
+
+### Uso Programático
+
+```python
+from src.analisador_fundos import AnalisadorFundos
+
+analisador = AnalisadorFundos()
+
+# Carregar dados da CVM (primeira vez)
+analisador.carregar_dados()
+
+# Buscar fundos ativos
+fundos = analisador.banco.buscar_fundos({
+    'situacao': 'EM FUNCIONAMENTO NORMAL',
+    'tipo_fundo': 'FI'
+})
+
+# Comparar fundos por CNPJ
+comparacao = analisador.comparar_fundos([
+    '00.017.024/0001-53',
+    '00.068.305/0001-35'
+])
+
+# Exportar para CSV
+analisador.exportar_comparacao_csv(lista_cnpj, 'comparacao.csv')
+```
+
+### Estrutura de Diretórios
+
+```
+fundos-investimento/
+├── main.py                     # Ponto de entrada unificado
+├── src/                        # Módulos Python
+│   ├── __init__.py             # Exportações do pacote
+│   ├── analisador_fundos.py    # Comparador de fundos
+│   ├── comparador_cli.py       # Interface de linha de comando
+│   └── dashboard_cvm.py        # Dashboard de monitoramento
+├── output/                     # Arquivos gerados
+│   ├── fundos.db               # Banco de dados SQLite
+│   ├── cache/                  # Cache de downloads
+│   └── comparacao_*.csv        # Exportações
+├── CLAUDE.md                   # Contexto do projeto para IA
+└── README.md
+```
+
 ## Contribuindo
 
 Sinta-se à vontade para melhorar este script! Algumas ideias:
-- Adicionar funcionalidade de download de dados
+- Adicionar funcionalidade de download de arquivos ZIP
 - Criar gráficos e visualizações
 - Adicionar notificações por e-mail para mudanças
 - Criar um dashboard web
 - Adicionar suporte para outros grupos de dados da CVM
+- Integrar dados de perfil mensal para análise de performance
 
 ## Suporte
 
@@ -257,5 +343,5 @@ Para questões relacionadas a:
 ---
 
 **Última Atualização**: Janeiro de 2026
-**Versão**: 2.0
-**Autor**: Dashboard aprimorado com rastreamento de mudanças
+**Versão**: 3.0
+**Autor**: Dashboard com comparador de fundos unificado
