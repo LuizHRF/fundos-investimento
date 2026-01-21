@@ -5,24 +5,14 @@ __pycache__/
 *.so
 .Python
 
-
 # Virtual Environment
 .venv/
 venv/
 ENV/
 env/
 
-# CVM Data Files (optional - uncomment to exclude data files from git)
-cvm_fundos_completo.json
-cvm_fundos_recursos.csv
-cvm_metadata_summary.json
-
-# State file (recommended to exclude - regenerated on each run)
-cvm_state.json
-*.state.json
-
-# Dashboard text output
-cvm_dashboard.txt
+# Output directory (generated data)
+output/
 
 # IDE
 .vscode/
@@ -35,4 +25,5 @@ cvm_dashboard.txt
 .DS_Store
 Thumbs.db
 
+# Claude
 .claude/

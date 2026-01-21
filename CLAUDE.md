@@ -140,7 +140,7 @@ Build a comprehensive fund comparison system to track all available investment f
 - [ ] Build fund comparison report generator (side-by-side feature comparison)
 - [ ] Add fund change tracking (detect new funds, closed funds, fee changes)
 - [ ] Create export functionality (CSV/Excel comparison reports)
-
+- [ ] Create a compreensive fund comparison (csv table that encompasses all funds and their stats)
 ---
 
 ## Available Data Fields by Dataset

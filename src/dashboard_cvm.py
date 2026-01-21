@@ -480,69 +480,14 @@ class CVMDataExtractor:
         return latest_resources
 
     def load_state(self, filename: Optional[str] = None) -> Dict:
-        """Load previous run state from JSON file"""
-        if filename is None:
-            filename = self.state_file
-
-        if not os.path.exists(filename):
-            return {}
-
-        try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            return state
-        except Exception as e:
-            print(f"Warning: Could not load state file {filename}: {e}")
-            print("Proceeding without previous state...")
-            return {}
+        """Load previous run state from SQLite database"""
+        from . import storage
+        return storage.load_state()
 
     def save_state(self, all_data: Dict, filename: Optional[str] = None):
-        """Save current state to JSON file"""
-        if filename is None:
-            filename = self.state_file
-
-        # Calculate summary statistics
-        total_resources = sum(len(dataset['resources']) for dataset in all_data.values())
-        format_count = {}
-        for dataset in all_data.values():
-            for resource in dataset['resources']:
-                fmt = resource['format']
-                format_count[fmt] = format_count.get(fmt, 0) + 1
-
-        # Build state structure
-        state = {
-            'last_run_timestamp': datetime.now().isoformat(),
-            'datasets': {},
-            'summary': {
-                'total_datasets': len(all_data),
-                'total_resources': total_resources,
-                'format_distribution': format_count
-            }
-        }
-
-        # Store dataset metadata and resources
-        for dataset_id, dataset_info in all_data.items():
-            state['datasets'][dataset_id] = {
-                'metadata_modified': dataset_info.get('metadata_modified', ''),
-                'num_resources': dataset_info.get('num_resources', 0),
-                'resources': {}
-            }
-
-            # Store resource metadata
-            for resource in dataset_info.get('resources', []):
-                state['datasets'][dataset_id]['resources'][resource['id']] = {
-                    'last_modified': resource.get('last_modified', ''),
-                    'name': resource.get('name', ''),
-                    'format': resource.get('format', ''),
-                    'size': resource.get('size')
-                }
-
-        try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(state, f, ensure_ascii=False, indent=2)
-            print(Colors.colorize(f"Estado salvo em: {filename}", Colors.GREEN))
-        except Exception as e:
-            print(f"Warning: Could not save state file {filename}: {e}")
+        """Save current state to SQLite database"""
+        from . import storage
+        storage.save_state(all_data)
 
     def detect_changes(self, current_data: Dict, previous_state: Dict) -> Dict:
         """Detect changes between current data and previous state"""
@@ -971,36 +916,9 @@ class CVMDataExtractor:
         
         print(f"{'='*100}\n")
     
-    # def download_resource(self, url: str, output_path: str):
-    #     """Download de um recurso específico com barra de progresso"""
-    #     import requests
-    #     from tqdm import tqdm
-        
-    #     print(f"📥 Baixando: {url}")
-        
-    #     response = requests.get(url, stream=True)
-    #     response.raise_for_status()
-        
-    #     total_size = int(response.headers.get('content-length', 0))
-        
-    #     with open(output_path, 'wb') as f, tqdm(
-    #         desc=output_path,
-    #         total=total_size,
-    #         unit='iB',
-    #         unit_scale=True,
-    #         unit_divisor=1024,
-    #     ) as pbar:
-    #         for chunk in response.iter_content(chunk_size=8192):
-    #             size = f.write(chunk)
-    #             pbar.update(size)
-        
-    #     print(f"✅ Salvo em: {output_path}\n")
-    
-    def export_to_json(self, all_data: Dict, filename: str = 'cvm_fundos_completo.json'):
-        """Exporta todos os dados para JSON"""
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(all_data, f, ensure_ascii=False, indent=2)
-        print(f"✅ Dados exportados para: {filename}")
+    def export_to_json(self, all_data: Dict, filename: str = None):
+        """Dados já são salvos no SQLite via save_state()"""
+        pass  # Suprimido - dados salvos em SQLite
     
     def export_to_csv(self, all_data: Dict, filename: str = 'cvm_fundos_recursos.csv'):
         """Exporta lista de recursos para CSV"""
@@ -1027,201 +945,48 @@ class CVMDataExtractor:
         
         print(f"✅ Lista de recursos exportada para: {filename}")
 
-    def export_metadata_summary(self, all_data: Dict, changes: Optional[Dict] = None, filename: str = 'cvm_metadata_summary.json'):
-        """Export dashboard metadata summary to JSON"""
-        # Calculate statistics
-        total_datasets = len(all_data)
-        total_resources = sum(len(dataset['resources']) for dataset in all_data.values())
-
-        # Format distribution
-        format_count = {}
-        for dataset in all_data.values():
-            for resource in dataset['resources']:
-                fmt = resource['format']
-                format_count[fmt] = format_count.get(fmt, 0) + 1
-
-        # Classify by fund type
-        fund_types = self.classify_by_fund_type(all_data)
-
-        # Build summary structure
-        summary = {
-            'generated_at': datetime.now().isoformat(),
-            'summary': {
-                'total_datasets': total_datasets,
-                'total_resources': total_resources,
-                'total_fund_types': len(fund_types)
-            },
-            'format_distribution': format_count,
-            'fund_types': {}
-        }
-
-        # Add fund type details
-        for fund_type, type_data in fund_types.items():
-            summary['fund_types'][fund_type] = {
-                'num_datasets': len(type_data['datasets']),
-                'total_resources': type_data['total_resources'],
-                'latest_update': type_data['latest_update'],
-                'datasets': []
-            }
-
-            # Add dataset details
-            for dataset_entry in type_data['datasets']:
-                dataset_id = dataset_entry['id']
-                dataset_info = dataset_entry['info']
-                frequency = self.infer_update_frequency(dataset_id, dataset_info)
-
-                summary['fund_types'][fund_type]['datasets'].append({
-                    'id': dataset_id,
-                    'title': dataset_info.get('title', ''),
-                    'update_frequency': frequency,
-                    'num_resources': len(dataset_info.get('resources', [])),
-                    'metadata_modified': dataset_info.get('metadata_modified', ''),
-                    'url': dataset_info.get('url', '')
-                })
-
-        # Add changes if available
+    def export_metadata_summary(self, all_data: Dict, changes: Optional[Dict] = None, filename: str = None):
+        """Registra mudanças no SQLite (substituiu export JSON)"""
+        from . import storage
         if changes:
-            summary['changes'] = {
-                'new_datasets': len(changes.get('new_datasets', [])),
-                'modified_datasets': len(changes.get('modified_datasets', [])),
-                'deleted_datasets': len(changes.get('deleted_datasets', [])),
-                'new_resources': len(changes.get('new_resources', [])),
-                'modified_resources': len(changes.get('modified_resources', [])),
-                'deleted_resources': len(changes.get('deleted_resources', []))
-            }
-
-        try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(summary, f, ensure_ascii=False, indent=2)
-            print(Colors.colorize(f"✅ Metadata summary exported to: {filename}", Colors.GREEN))
-        except Exception as e:
-            print(f"Warning: Could not export metadata summary: {e}")
+            storage.log_changes(changes)
 
 
-# ====================
-# EXEMPLOS DE USO
-# ====================
-
-def exemplo_basico():
-    """Exemplo 1: Uso básico - listar todos os datasets"""
-    print("\n🔷 EXEMPLO 1: Listar todos os datasets\n")
-    
-    extractor = CVMDataExtractor()
-    all_data = extractor.extract_all_resources()
-    extractor.print_summary(all_data)
-
-def exemplo_busca():
-    """Exemplo 2: Buscar datasets específicos"""
-    print("\n🔷 EXEMPLO 2: Buscar datasets de FII\n")
-    
-    extractor = CVMDataExtractor()
-    results = extractor.search_datasets('FII')
-    
-    print(f"Encontrados {len(results)} datasets relacionados a FII:")
-    for dataset in results:
-        print(f"  • {dataset['title']}")
-
-def exemplo_recursos_recentes():
-    """Exemplo 3: Listar recursos CSV mais recentes"""
-    print("\n🔷 EXEMPLO 3: Recursos CSV mais recentes\n")
-    
-    extractor = CVMDataExtractor()
-    csv_resources = extractor.get_latest_resources(format_filter='CSV')
-    
-    print("Top 10 arquivos CSV mais recentes:")
-    for idx, resource in enumerate(csv_resources[:10], 1):
-        print(f"{idx}. {resource['resource_name']}")
-        print(f"   Dataset: {resource['dataset']}")
-        print(f"   Última modificação: {resource['last_modified']}")
-        print(f"   URL: {resource['url'][:80]}...\n")
-
-def exemplo_download():
-    """Exemplo 4: Download de arquivo específico"""
-    print("\n🔷 EXEMPLO 4: Download de arquivo\n")
-    
-    extractor = CVMDataExtractor()
-    
-    # Obter o cadastro de fundos (sempre atualizado)
-    dataset = extractor.get_dataset_details('fi-cad')
-    
-    # Pegar o primeiro recurso CSV
-    csv_resources = [r for r in dataset['resources'] if r['format'] == 'CSV']
-    
-    if csv_resources:
-        resource = csv_resources[0]
-        print(f"Fazendo download de: {resource['name']}")
-        extractor.download_resource(resource['url'], 'cadastro_fundos.csv')
-
-def exemplo_exportacao():
-    """Exemplo 5: Exportar metadados"""
-    print("\n🔷 EXEMPLO 5: Exportar metadados\n")
+def main_dashboard():
+    """Executa o dashboard de monitoramento CVM"""
+    print("\n" + "=" * 100)
+    print(Colors.colorize("DASHBOARD CVM - FUNDOS DE INVESTIMENTO", Colors.CYAN, bold=True))
+    print("=" * 100 + "\n")
 
     extractor = CVMDataExtractor()
-    all_data = extractor.extract_all_resources(verbose=False)
-
-    # Exportar para JSON e CSV
-    extractor.export_to_json(all_data)
-    extractor.export_to_csv(all_data)
-
-
-def exemplo_dashboard():
-    """Exemplo 6: Dashboard completo com rastreamento de mudanças"""
-    print("\n" + "="*100)
-    print(Colors.colorize("EXEMPLO 6: Dashboard Completo com Rastreamento de Mudanças", Colors.CYAN, bold=True))
-    print("="*100 + "\n")
-
-    # Inicializar extrator com output para arquivo texto
-    extractor = CVMDataExtractor(output_file='cvm_dashboard.txt')
 
     # Carregar estado anterior
-    print(Colors.colorize("Carregando estado anterior...", Colors.YELLOW))
     previous_state = extractor.load_state()
-
-    if previous_state:
-        print(Colors.colorize(f"Execução anterior: {format_timestamp(previous_state.get('last_run_timestamp', 'N/A'))}", Colors.GREEN))
+    if previous_state.get('datasets'):
+        print(Colors.colorize("Estado anterior carregado do banco de dados.", Colors.GREEN))
     else:
-        print(Colors.colorize("Nenhum estado anterior encontrado. Esta é a primeira execução.", Colors.YELLOW))
-
+        print(Colors.colorize("Primeira execução - sem estado anterior.", Colors.YELLOW))
     print()
 
-    # Extrair dados (com caching inteligente se houver estado anterior)
+    # Extrair dados
     all_data = extractor.extract_all_resources_smart(previous_state, verbose=True)
-
     print()
 
-    # Detectar mudanças
+    # Detectar e registrar mudanças
     changes = extractor.detect_changes(all_data, previous_state)
 
     # Exibir dashboard
     extractor.print_dashboard(all_data, changes, previous_state)
 
-    # Salvar estado para próxima execução
-    print(Colors.colorize("Salvando estado atual...", Colors.YELLOW))
+    # Salvar estado
     extractor.save_state(all_data)
-
-    # Exportar metadados
-    print(Colors.colorize("Exportando dados...", Colors.YELLOW))
-    extractor.export_to_json(all_data)
-    extractor.export_to_csv(all_data)
     extractor.export_metadata_summary(all_data, changes)
 
     print()
     print(Colors.colorize("=" * 100, Colors.GREEN))
-    print(Colors.colorize("Execução do dashboard concluída com sucesso!", Colors.GREEN, bold=True))
+    print(Colors.colorize("Dashboard concluído!", Colors.GREEN, bold=True))
     print(Colors.colorize("=" * 100, Colors.GREEN))
-    print()
 
 
 if __name__ == "__main__":
-    # Execute o exemplo que preferir:
-
-    # extractor = CVMDataExtractor()
-    # extractor.list_all_datasets()
-
-    # exemplo_basico()              # Resumo completo (antigo)
-    # exemplo_busca()               # Busca específica
-    # exemplo_recursos_recentes()   # Últimos arquivos
-    # exemplo_download()            # Baixar arquivo
-    # exemplo_exportacao()          # Exportar metadados (antigo)
-
-    exemplo_dashboard()             # Dashboard completo com rastreamento (RECOMENDADO)
+    main_dashboard()
