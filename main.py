@@ -1,78 +1,34 @@
 #!/usr/bin/env python3
 """
-CVM Fundos de Investimento - Ferramenta Unificada
-
-Sistema para monitoramento e comparação de fundos de investimento brasileiros
-usando dados do Portal de Dados Abertos da CVM.
+CVM Fundos de Investimento
 
 Uso:
-    python main.py                     # Comparador de fundos (padrão)
-    python main.py comparar [opções]   # Comparador de fundos
-    python main.py dashboard [opções]  # Dashboard de monitoramento
-
-Opções do comparador:
-    --carregar   Carregar/atualizar dados da CVM
-    --stats      Mostrar apenas estatísticas
-    --help       Mostrar ajuda
-
-Opções do dashboard:
-    --listar       Listar todos os datasets
-    --busca TERMO  Buscar datasets por termo
-    --recentes     Mostrar recursos mais recentes
-    --help         Mostrar ajuda
-
-Exemplos:
-    python main.py                          # Executar comparador
-    python main.py comparar --carregar      # Atualizar dados do comparador
-    python main.py dashboard                # Executar dashboard
-    python main.py dashboard --busca FII    # Buscar datasets de FII
+    python main.py                   # Dashboard de monitoramento CVM
+    python main.py funds             # Tabela comparativa (apenas ativos)
+    python main.py funds --all       # Inclui todas situações exceto cancelados
+    python main.py funds --canceled  # Inclui todos (inclusive cancelados)
 """
-
 import sys
 from pathlib import Path
-
-# Adicionar diretório src ao path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
-
-from src import main_comparador, main_dashboard
-
-
-def exibir_ajuda():
-    """Exibe ajuda geral"""
-    print(__doc__)
 
 
 def main():
-    """Função principal unificada"""
-    if len(sys.argv) < 2:
-        # Padrão: executar comparador de fundos
-        main_comparador([])
-        return
+    args = sys.argv[1:]
 
-    comando = sys.argv[1].lower()
-
-    if comando in ['--help', '-h', 'help']:
-        exibir_ajuda()
-
-    elif comando in ['comparar', 'compare', 'c']:
-        # Comparador de fundos
-        main_comparador(sys.argv[2:])
-
-    elif comando in ['dashboard', 'dash', 'd']:
-        # Dashboard de monitoramento
-        main_dashboard(sys.argv[2:])
-
-    elif comando.startswith('--'):
-        # Se passa opções diretamente, assume comparador
-        main_comparador(sys.argv[1:])
-
+    if args and args[0] == 'funds':
+        from src.analisador_fundos import main as fundos_main
+        modo = 'ativos'
+        if '--canceled' in args:
+            modo = 'cancelados'
+        elif '--all' in args:
+            modo = 'todos'
+        fundos_main(modo=modo)
+    elif args and args[0] in ['--help', '-h']:
+        print(__doc__)
     else:
-        print(f"Comando desconhecido: {comando}")
-        print("\nComandos disponíveis:")
-        print("  comparar   Comparador de fundos (padrão)")
-        print("  dashboard  Dashboard de monitoramento")
-        print("  --help     Mostrar ajuda")
-        sys.exit(1)
+        from src.dashboard_cvm import main_dashboard
+        main_dashboard()
 
 
 if __name__ == "__main__":
