@@ -1,281 +1,184 @@
-# CVM Investment Funds Dashboard
+# CVM Fundos de Investimento
 
 ## Project Overview
 
-Python application that monitors Brazilian investment fund data from CVM (Comissão de Valores Mobiliários) Open Data Portal. Tracks 22 datasets across 7 fund types (FI, FII, FIP, FIDC, FIAGRO, FIE).
+Python application for consolidating Brazilian investment fund data from CVM (Comissão de Valores Mobiliários) Open Data Portal using the new CVM Resolution 175 (2023) framework.
+
+## Usage
+
+```bash
+python main.py                   # Consolida dados de fundos
+python main.py consolidate       # Mesmo que acima
+python main.py consolidate --force  # Força re-download
+```
+
+## Project Structure
+
+```
+fundos-investimento/
+├── main.py                  # Entry point
+├── src/
+│   ├── __init__.py
+│   └── consolidador/        # Fund data consolidation package
+│       ├── __init__.py
+│       ├── config.py        # URLs, field mappings, constants
+│       ├── downloader.py    # Download with caching + ZIP extraction
+│       ├── consolidator.py  # Main pipeline orchestrator
+│       ├── merger.py        # Merge Fund → Class data
+│       ├── exporter.py      # CSV export
+│       └── parsers/
+│           ├── __init__.py
+│           └── rcvm175.py   # RCVM175 fund registry parser
+└── output/
+    ├── fundos_principais.csv  # ~87k funds (one row per fund)
+    ├── fundos_classes.csv     # ~35k share classes
+    └── cache/                 # Downloaded files cache
+```
 
 ## Key Technical Details
 
-- **API**: CKAN API via `ckanapi` library (https://dados.cvm.gov.br)
-- **Main class**: `CVMDataExtractor` in `script.py`
-- **State persistence**: `cvm_state.json` for change tracking between runs
+- **Data Source**: `registro_fundo_classe.zip` (CVM Resolution 175)
+- **Output Encoding**: UTF-8-SIG (Excel compatible)
 
-### CSV File Format (Important)
+### CSV File Format (CVM Standard)
 ```python
-# All CVM CSVs use:
 delimiter = ';'          # NOT comma
 encoding = 'latin-1'     # Portuguese characters (ç, ã, etc.)
 ```
 
-## Change Detection Mechanism
+---
 
-The script detects modifications by comparing **metadata timestamps** from the CKAN API:
+## CVM Database Structure (January 2026)
 
-- **Datasets**: `metadata_modified` field
-- **Resources**: `last_modified` field
+### Critical Finding: Legacy vs New System
 
-**Limitation**: Does not download files or compute hashes. If CVM silently replaces a file without updating timestamps, the change won't be detected.
+| Source | Total Records | Active Funds | Status |
+|--------|--------------|--------------|--------|
+| `cad_fi.csv` | 46,824 | **32** | ⚠️ Legacy/Deprecated |
+| `registro_fundo_classe.zip` | 86,878 | **33,475** | ✅ Current System |
 
-## Dataset Structure & Common Keys
+**CVM Resolution 175 (2023)** completely restructured fund registration in Brazil. The old `cad_fi.csv` is essentially frozen - most funds have migrated to the new hierarchical system.
 
-| Dataset | Key Fields | Content |
-|---------|------------|---------|
-| `cad_fi.csv` | `CNPJ_FUNDO`, `CD_CVM` | Fund registration, admin, manager |
-| `extrato_fi.csv` | `CNPJ_FUNDO_CLASSE` | Fund policies, fees, investment rules |
-| `perfil_mensal_fi_*.csv` | `CNPJ_FUNDO` | Monthly profiles |
-| `dfin_fii_*.csv` | CNPJ | Financial statements |
-
-**Primary join key**: `CNPJ_FUNDO` (Brazilian tax ID) - present across most datasets.
-
-### Data Dictionaries (Dicionário de Dados)
-
-Each of the 22 datasets includes a **"Dicionário de dados"** resource that documents:
-- Field names and descriptions
-- Data types and formats
-- Relationships between fields
-
-These dictionaries are essential for:
-- Understanding field semantics across different CSVs within a dataset
-- Correctly joining documents within the same dataset
-- Mapping equivalent fields across different fund types
-
-## Example CSV URLs
+### RCVM175 Data Structure (Three-Table Hierarchy)
 
 ```
+registro_fundo_classe.zip
+├── REGISTRO_FUNDO.CSV      (86,878 funds)
+│   ├── ID_Registro_Fundo (PK)
+│   ├── CNPJ_Fundo
+│   ├── Tipo_Fundo
+│   ├── Situacao
+│   ├── Patrimonio_Liquido
+│   └── Administrator/Manager info
+│
+├── REGISTRO_CLASSE.CSV     (35,411 share classes)
+│   ├── ID_Registro_Classe (PK)
+│   ├── ID_Registro_Fundo (FK) ──────┘
+│   ├── CNPJ_Classe
+│   ├── Classificacao_Anbima (66 categories)
+│   ├── Classe_ESG (new!)
+│   ├── Publico_Alvo (Geral/Qualificado/Profissional)
+│   └── Forma_Condominio (Aberto/Fechado)
+│
+└── REGISTRO_SUBCLASSE.CSV  (6,615 subclasses)
+    ├── ID_Subclasse (PK)
+    ├── ID_Registro_Classe (FK) ────┘
+    └── Investor segment details
+```
+
+### Fund Types in CVM System
+
+| Type | Full Name | RCVM175 Count |
+|------|-----------|---------------|
+| FI | Fundos de Investimento | 60,444 |
+| FIDC | Direitos Creditórios | 7,135 |
+| FIF | Fund of Funds | 5,229 |
+| FIP | Participações (Private Equity) | 4,203 |
+| FII | Imobiliário (Real Estate) | 2,034 |
+| FIAGRO | Cadeias Agroindustriais | 272 |
+| FITVM | Securities Brokerage | 842 |
+| Others | FAPI, FICART, FMIA, FMIEE, FMP-FGTS, FUNCINE | ~2,000 |
+
+### Status Distribution (RCVM175)
+
+| Status | Count | % |
+|--------|-------|---|
+| Em Funcionamento Normal | 33,475 | 38.6% |
+| Cancelado | 50,528 | 58.2% |
+| Fase Pré-Operacional | 2,221 | 2.6% |
+| Em Liquidação | 638 | 0.7% |
+
+### New Fields in RCVM175
+
+| Field | Description | Business Value |
+|-------|-------------|----------------|
+| `Classificacao_Anbima` | 66 standardized categories | Better fund comparison |
+| `Classe_ESG` | ESG designation (702 funds) | Sustainability tracking |
+| `Publico_Alvo` | Investor type | Regulatory compliance |
+| `Data_Adaptacao_RCVM175` | Migration date | Track system transition |
+| Share Classes | Multiple classes per fund | Investor segmentation |
+
+### Investor Stratification (from REGISTRO_CLASSE)
+
+- **Público Geral** (General Public): 5,616 classes
+- **Qualificado** (Qualified Investors): 3,836 classes
+- **Profissional** (Professional Investors): 16,744 classes
+
+### Data URLs
+
+```
+# Primary source (RCVM175) - USED
+https://dados.cvm.gov.br/dados/FI/CAD/DADOS/registro_fundo_classe.zip
+
+# Legacy source (deprecated) - NOT USED
 https://dados.cvm.gov.br/dados/FI/CAD/DADOS/cad_fi.csv
-https://dados.cvm.gov.br/dados/FI/DOC/EXTRATO/DADOS/extrato_fi.csv
-https://dados.cvm.gov.br/dados/FI/DOC/PERFIL_MENSAL/DADOS/perfil_mensal_fi_YYYYMM.csv
-https://dados.cvm.gov.br/dados/FII/DOC/DFIN/DADOS/dfin_fii_YYYY.csv
-```
-
-## Expansion Possibility: Holistic Data Analysis
-
-Currently the script only monitors metadata changes. It could be extended to download and analyze the actual fund data by joining datasets on CNPJ.
-
-### Potential Analysis Capabilities
-
-- Join registration data with financial data
-- Track fund performance over time series
-- Analyze fund characteristics vs. fees/returns
-- Compare across fund types (FI vs FII vs FIP)
-- Aggregate by manager, administrator, or asset class
-
-### Implementation Approach
-
-```python
-import pandas as pd
-
-# Download and parse (note: semicolon delimiter, latin-1 encoding)
-df_cad = pd.read_csv(url_cad, sep=';', encoding='latin-1')
-df_extrato = pd.read_csv(url_extrato, sep=';', encoding='latin-1')
-
-# Join on CNPJ
-df_merged = df_cad.merge(
-    df_extrato,
-    left_on='CNPJ_FUNDO',
-    right_on='CNPJ_FUNDO_CLASSE'
-)
-```
-
-### Dependencies to Add
-
-```
-pandas>=2.0
-```
-
-## Running the Project
-
-```bash
-source .venv/bin/activate
-python3 script.py
-```
-
-Outputs generated:
-- `cvm_dashboard.txt` - Text dashboard
-- `cvm_state.json` - Cached state for change tracking
-- `cvm_fundos_completo.json` - Complete catalog
-- `cvm_fundos_recursos.csv` - Resources list
-- `cvm_metadata_summary.json` - Statistical summary
-
----
-
-## NEXT STEPS: Fund Comparison System
-
-### Goal
-Build a comprehensive fund comparison system to track all available investment funds and their features for corporate investment decision-making.
-
-### Implementation Todo List
-
-#### Phase 1: Data Understanding
-- [ ] Analyze Dicionário de Dados for each dataset type to map field semantics
-
-#### Phase 2: Data Acquisition
-- [ ] Implement ZIP file download and extraction for compressed datasets
-- [ ] Implement CSV download and parsing (delimiter=';', encoding='latin-1')
-- [ ] Implement incremental updates (only download changed files based on last_modified)
-
-#### Phase 3: Data Model & Integration
-- [ ] Design unified fund data model with common attributes across fund types
-- [ ] Create fund catalog from cad_fi.csv (registration data: CNPJ, name, manager, admin, status)
-- [ ] Integrate fee data from extrato_fi.csv (TAXA_ADM, TAXA_PERFM, policies)
-- [ ] Integrate financial metrics from perfil_mensal/inf_diario (PL, returns, quotas)
-- [ ] Handle different fund types: FI, FII, FIP, FIDC, FIAGRO, FIE with their specific datasets
-- [ ] Implement data joining using CNPJ_FUNDO as primary key across datasets
-
-#### Phase 4: Storage & Persistence
-- [ ] Create local SQLite database to store processed fund data
-
-#### Phase 5: Analysis & Comparison
-- [ ] Build fund search and filtering (by type, manager, fees, status, asset class)
-- [ ] Build fund comparison report generator (side-by-side feature comparison)
-- [ ] Add fund change tracking (detect new funds, closed funds, fee changes)
-- [ ] Create export functionality (CSV/Excel comparison reports)
-- [ ] Create a compreensive fund comparison (csv table that encompasses all funds and their stats)
----
-
-## Available Data Fields by Dataset
-
-### cad_fi.csv (Fund Registration)
-```
-TP_FUNDO, CNPJ_FUNDO, DENOM_SOCIAL, DT_REG, DT_CONST, CD_CVM, DT_CANCEL,
-SIT, DT_INI_SIT, DT_INI_ATIV, DT_INI_EXERC, DT_FIM_EXERC, CLASSE,
-DT_INI_CLASSE, RENTAB_FUNDO, CONDOM, FUNDO_COTAS, FUNDO_EXCLUSIVO,
-TRIB_LPRAZO, PUBLICO_ALVO, ENTID_INVEST, TAXA_PERFM, INF_TAXA_PERFM,
-TAXA_ADM, INF_TAXA_ADM, VL_PATRIM_LIQ, DT_PATRIM_LIQ, DIRETOR,
-CNPJ_ADMIN, ADMIN, PF_PJ_GESTOR, CPF_CNPJ_GESTOR, GESTOR,
-CNPJ_AUDITOR, AUDITOR, CNPJ_CUSTODIANTE, CUSTODIANTE,
-CNPJ_CONTROLADOR, CONTROLADOR, INVEST_CEMPR_EXTER, CLASSE_ANBIMA
-```
-
-### perfil_mensal (Monthly Profile)
-```
-TP_FUNDO_CLASSE, CNPJ_FUNDO_CLASSE, DENOM_SOCIAL, DT_COMPTC, VERSAO,
-NR_COTST_PF_*, NR_COTST_PJ_*, NR_COTST_BANCO, NR_COTST_CORRETORA_DISTRIB,
-PR_PL_COTST_* (% of AUM by investor type),
-PR_VARIACAO_DIARIA_COTA, PR_VARIACAO_DIARIA_COTA_ESTRESSE,
-CENARIO_FPR_IBOVESPA, CENARIO_FPR_JUROS, CENARIO_FPR_CUPOM, CENARIO_FPR_DOLAR,
-VL_FATOR_RISCO_NOCIONAL_LONG_*, VL_FATOR_RISCO_NOCIONAL_SHORT_*,
-PR_PATRIM_LIQ_MAIOR_COTST, NR_DIA_CINQU_PERC, NR_DIA_CEM_PERC,
-ST_LIQDEZ, PR_PATRIM_LIQ_CONVTD_CAIXA
-```
-
-### fip-inf_quadrimestral (Private Equity Reports)
-```
-TP_FUNDO_CLASSE, CNPJ_FUNDO_CLASSE, DENOM_SOCIAL, DT_COMPTC,
-VL_PATRIM_LIQ, QT_COTA, VL_PATRIM_COTA, NR_COTST,
-VL_CAP_COMPROM, VL_CAP_SUBSCR, VL_CAP_INTEGR,
-NR_COTST_SUBSCR_*, PR_COTA_SUBSCR_*
 ```
 
 ---
 
-## Suggested Analyses
+## Output Schema
 
-### 1. Fund Selection & Screening
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Active funds by type (FI, FII, FIP, FIDC, FIAGRO) | `cad_fi.csv` | `SIT`, `TP_FUNDO`, `CLASSE` |
-| Funds by target audience | `cad_fi.csv` | `PUBLICO_ALVO` (general, qualified, professional) |
-| Funds by ANBIMA classification | `cad_fi.csv` | `CLASSE_ANBIMA` (Renda Fixa, Multimercado, Ações, etc.) |
-| Minimum investment requirements | `extrato_fi.csv` | `APLIC_MIN` |
-| Exclusive vs. open funds | `cad_fi.csv` | `FUNDO_EXCLUSIVO`, `CONDOM` |
+### fundos_principais.csv
 
-### 2. Fee Analysis & Comparison
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Administration fee comparison | `cad_fi.csv`, `extrato_fi.csv` | `TAXA_ADM` |
-| Performance fee analysis | `cad_fi.csv`, `extrato_fi.csv` | `TAXA_PERFM`, `PARAM_TAXA_PERFM` |
-| Entry/exit fees | `extrato_fi.csv` | `TAXA_INGRESSO_*`, `TAXA_SAIDA_*` |
-| Fee vs. returns correlation | Combined | Fees + `perfil_mensal` returns |
+One row per fund (~87k total, ~33k active):
 
-### 3. Manager & Administrator Analysis
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Top managers by AUM | `cad_fi.csv` | `GESTOR`, `VL_PATRIM_LIQ` |
-| Top administrators by fund count | `cad_fi.csv` | `ADMIN`, `CNPJ_ADMIN` |
-| Manager concentration risk | `cad_fi.csv` | Aggregate by `CPF_CNPJ_GESTOR` |
-| Custodian market share | `cad_fi.csv` | `CUSTODIANTE` |
+| Column | Source | Description |
+|--------|--------|-------------|
+| cnpj | REGISTRO_FUNDO | Fund CNPJ (primary key) |
+| nome_fundo | REGISTRO_FUNDO | Fund name |
+| tipo_fundo | REGISTRO_FUNDO | FI, FII, FIP, FIDC, etc. |
+| situacao | REGISTRO_FUNDO | Current status |
+| em_funcionamento | Derived | Boolean (active = True) |
+| gestor | REGISTRO_FUNDO | Manager name |
+| administrador | REGISTRO_FUNDO | Administrator name |
+| patrimonio_liquido | REGISTRO_FUNDO | Net assets (R$) |
+| classificacao_anbima | REGISTRO_CLASSE | ANBIMA category (aggregated) |
+| classe_esg | REGISTRO_CLASSE | ESG designation (S if any class) |
+| publico_alvo | REGISTRO_CLASSE | Most restrictive investor type |
+| forma_condominio | REGISTRO_CLASSE | Open/Closed |
+| taxa_administracao | REGISTRO_CLASSE | Admin fee (%) |
+| taxa_performance | REGISTRO_CLASSE | Performance fee (%) |
 
-### 4. Risk & Portfolio Analysis
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Daily volatility (VaR proxy) | `perfil_mensal` | `PR_VARIACAO_DIARIA_COTA`, `PR_VARIACAO_DIARIA_COTA_ESTRESSE` |
-| Exposure to risk factors | `perfil_mensal` | `CENARIO_FPR_IBOVESPA`, `CENARIO_FPR_JUROS`, `CENARIO_FPR_DOLAR` |
-| Derivatives exposure | `perfil_mensal` | `VL_FATOR_RISCO_NOCIONAL_*` |
-| Credit risk (private credit %) | `extrato_fi.csv` | `ATIVO_CRED_PRIV`, `APLIC_MAX_ATIVO_CRED_PRIV` |
-| Foreign investment exposure | `extrato_fi.csv` | `INVEST_EXTERIOR`, `APLIC_MAX_ATIVO_EXTERIOR` |
+### fundos_classes.csv
 
-### 5. Liquidity Analysis
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Redemption terms | `extrato_fi.csv` | `QT_DIA_RESGATE_COTAS`, `QT_DIA_PAGTO_RESGATE` |
-| Conversion period | `extrato_fi.csv` | `QT_DIA_CONVERSAO_COTA` |
-| Portfolio liquidity | `perfil_mensal` | `NR_DIA_CINQU_PERC`, `NR_DIA_CEM_PERC`, `ST_LIQDEZ` |
-| Cash position | `perfil_mensal` | `PR_PATRIM_LIQ_CONVTD_CAIXA` |
+One row per share class (~35k):
 
-### 6. Investor Base Analysis
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Investor type distribution | `perfil_mensal` | `NR_COTST_PF_*`, `NR_COTST_PJ_*`, `NR_COTST_BANCO`, etc. |
-| Institutional vs. retail | `perfil_mensal` | `PR_PL_COTST_*` (% of AUM by type) |
-| Concentration risk (top investor) | `perfil_mensal` | `PR_PATRIM_LIQ_MAIOR_COTST` |
-| Pension fund participation | `perfil_mensal` | `NR_COTST_EFPC`, `NR_COTST_RPPS`, `NR_COTST_EAPC` |
-
-### 7. FII-Specific (Real Estate Funds)
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Financial statements analysis | `fii-doc-dfin` | Balance sheet, income statement |
-| Monthly/quarterly performance | `fii-doc-inf_mensal/trimestral` | Detailed FII metrics |
-| Dividend distribution | `fii-doc-inf_*` | Distribution data |
-
-### 8. FIP-Specific (Private Equity)
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Committed vs. called capital | `fip-inf_quadrimestral` | `VL_CAP_COMPROM`, `VL_CAP_SUBSCR`, `VL_CAP_INTEGR` |
-| Investor composition | `fip-inf_quadrimestral` | `NR_COTST_SUBSCR_*`, `PR_COTA_SUBSCR_*` |
-| NAV per share evolution | `fip-inf_quadrimestral` | `VL_PATRIM_COTA` |
-
-### 9. Time Series & Trends
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| AUM evolution over time | `perfil_mensal` (monthly) | `VL_PATRIM_LIQ` |
-| New fund launches | `cad_fi.csv` | `DT_REG`, `DT_CONST` |
-| Fund closures/cancellations | `cad_fi.csv` | `DT_CANCEL`, `SIT` |
-| Industry growth by segment | Combined | Aggregate by `CLASSE_ANBIMA` |
-
-### 10. Compliance & Regulatory
-| Analysis | Data Source | Fields |
-|----------|-------------|--------|
-| Document delivery status | `fi-doc-entrega` | Delivery tracking |
-| Regulatory events | `fi-doc-eventual` | Special events/disclosures |
-| Assembly voting patterns | `perfil_mensal` | `VOTO_ADMIN_ASSEMB` |
+| Column | Description |
+|--------|-------------|
+| cnpj | Fund CNPJ (for linking) |
+| cnpj_classe | Class CNPJ |
+| nome_classe | Class name |
+| classificacao_anbima | ANBIMA classification |
+| classe_esg | ESG designation |
+| publico_alvo | Investor type |
+| taxa_administracao | Admin fee |
+| patrimonio_liquido_classe | Class net assets |
 
 ---
 
-## Priority Analyses for Corporate Investment
-
-1. **Fund Screening Dashboard**: Filter by `PUBLICO_ALVO`, `CLASSE_ANBIMA`, `SIT=ATIVO`
-2. **Fee Comparison Matrix**: Compare `TAXA_ADM` and `TAXA_PERFM` across similar funds
-3. **Risk Profile Assessment**: Use `PR_VARIACAO_DIARIA_COTA` and stress scenarios
-4. **Liquidity Requirements Match**: Check `QT_DIA_RESGATE_COTAS` meets corporate needs
-5. **Manager Due Diligence**: Track record by `GESTOR` across multiple funds
-
----
-
-## Dependencies to Add for Full Implementation
+## Dependencies
 
 ```
-pandas>=2.0
-sqlalchemy>=2.0
-openpyxl>=3.0      # Excel export
+requests>=2.31.0
+pandas>=2.0.0
 ```

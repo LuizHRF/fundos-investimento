@@ -1,9 +1,8 @@
-# CVM Fundos de Investimento - Dashboard
+# CVM Fundos de Investimento - Consolidador RCVM175
 # Dependências do projeto
 
-# API do portal CKAN da CVM
-ckanapi>=4.7
-
-# Fund analysis dependencies
+# HTTP requests for downloading CVM data
 requests>=2.31.0
+
+# Data processing and CSV handling
 pandas>=2.0.0

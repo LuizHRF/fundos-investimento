@@ -1,6 +1,6 @@
 # CVM Fundos de Investimento
 
-Monitore e analise fundos de investimento brasileiros usando dados do Portal de Dados Abertos da CVM.
+Consolide dados de fundos de investimento brasileiros usando dados do Portal de Dados Abertos da CVM (Resolução CVM 175).
 
 ## Instalação
 
@@ -17,24 +17,23 @@ pip install -r requirements.txt
 ## Uso
 
 ```bash
-python main.py          # Dashboard de monitoramento CVM
-python main.py funds    # Tabela comparativa de fundos
+python main.py                    # Consolida dados (usa cache local)
+python main.py consolidate        # Mesmo que acima
+python main.py consolidate --force  # Força re-download do servidor CVM
 ```
 
-### Dashboard (`python main.py`)
+> **Nota**: O script usa cache local. Para obter dados atualizados do servidor CVM, use `--force`. A CVM atualiza os dados diariamente às 08:00h (horário de Brasília).
 
-Monitora os 22 datasets de fundos da CVM:
-- Exibe status de todos os recursos (CSV, ZIP, etc.)
-- Detecta mudanças desde a última execução
-- Organiza por tipo de fundo (FI, FII, FIP, FIDC, FIAGRO, FIE)
-- Salva estado em SQLite para rastreamento
+## O Que Faz
 
-### Comparação de Fundos (`python main.py funds`)
+Baixa e processa o arquivo `registro_fundo_classe.zip` da CVM contendo:
+- **86.878 fundos** (33.475 em funcionamento)
+- **35.411 classes de cotas** com classificação ANBIMA
+- **Dados ESG** para ~700 classes
 
-Gera tabela comparativa com todos os fundos:
-- Baixa dados cadastrais da CVM (cad_fi.csv)
-- Exporta para `output/comparacao_fundos.csv`
-- Exibe estatísticas (total, ativos, por tipo, patrimônio)
+Exporta dois arquivos CSV:
+- `output/fundos_principais.csv` - Um fundo por linha
+- `output/fundos_classes.csv` - Uma classe por linha
 
 ## Estrutura
 
@@ -42,32 +41,48 @@ Gera tabela comparativa com todos os fundos:
 fundos-investimento/
 ├── main.py                  # Ponto de entrada
 ├── src/
-│   ├── analisador_fundos.py # Comparação de fundos
-│   ├── dashboard_cvm.py     # Dashboard de monitoramento
-│   └── storage.py           # Armazenamento SQLite
+│   └── consolidador/        # Pacote de consolidação
+│       ├── config.py        # URLs e mapeamentos
+│       ├── downloader.py    # Download com cache
+│       ├── consolidator.py  # Orquestrador
+│       ├── merger.py        # Merge Fundo → Classe
+│       ├── exporter.py      # Exportação CSV
+│       └── parsers/
+│           └── rcvm175.py   # Parser RCVM175
 └── output/
-    ├── comparacao_fundos.csv  # Tabela de fundos
-    ├── cvm_data.db            # Estado do dashboard
+    ├── fundos_principais.csv  # ~87k fundos
+    ├── fundos_classes.csv     # ~35k classes
     └── cache/                 # Cache de downloads
 ```
 
-## Dados Monitorados
+## Dados Disponíveis
 
-| Tipo | Datasets | Descrição |
-|------|----------|-----------|
-| FI | 10 | Fundos de Investimento (informes, balancetes) |
-| FII | 4 | Fundos Imobiliários |
-| FIP | 2 | Fundos de Participações |
-| FIDC | 1 | Direitos Creditórios |
-| FIAGRO | 1 | Cadeias Agroindustriais |
-| FIE | 3 | Fundos Estruturados |
+### Por Tipo de Fundo
+
+| Tipo | Nome | Quantidade |
+|------|------|------------|
+| FI | Fundos de Investimento | 60.444 |
+| FIDC | Direitos Creditórios | 7.135 |
+| FIF | Fundos de Fundos | 5.229 |
+| FIP | Participações (Private Equity) | 4.203 |
+| FII | Imobiliários | 2.034 |
+| FIAGRO | Cadeias Agroindustriais | 272 |
+
+### Por Status
+
+| Status | Quantidade | % |
+|--------|------------|---|
+| Em Funcionamento Normal | 33.475 | 38,6% |
+| Cancelado | 50.528 | 58,2% |
+| Fase Pré-Operacional | 2.221 | 2,6% |
+| Em Liquidação | 638 | 0,7% |
 
 ## Fonte dos Dados
 
 - **Portal**: https://dados.cvm.gov.br
-- **Grupo**: fundos-de-investimento
-- **Atualização**: Diária (08:00 Brasília)
+- **Arquivo**: `registro_fundo_classe.zip` (Resolução CVM 175)
+- **Atualização**: Diária
 
 ---
 
-**Versão**: 4.0 | **Atualização**: Janeiro 2026
+**Versão**: 5.0 | **Atualização**: Janeiro 2026
