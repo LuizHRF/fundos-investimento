@@ -146,18 +146,7 @@ def get_credentials() -> Credentials:
     if token_json:
         try:
             token_data = json.loads(token_json)
-
-            # Ensure required fields exist
-            required_fields = ['client_id', 'client_secret', 'refresh_token']
-            missing = [f for f in required_fields if f not in token_data]
-            if missing:
-                print(f"⚠ Token incompleto, campos faltando: {missing}")
-                print(f"  Campos presentes: {list(token_data.keys())}")
-            else:
-                credentials = Credentials.from_authorized_user_info(token_data, SCOPES)
-        except json.JSONDecodeError as e:
-            print(f"⚠ Erro ao decodificar JSON do token: {e}")
-            print(f"  Primeiros 100 chars: {token_json[:100]}...")
+            credentials = Credentials.from_authorized_user_info(token_data, SCOPES)
         except Exception as e:
             print(f"⚠ Erro ao carregar token do ambiente: {e}")
 
