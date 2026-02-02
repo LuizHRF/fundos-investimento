@@ -1,88 +1,49 @@
 # CVM Fundos de Investimento
 
-Consolide dados de fundos de investimento brasileiros usando dados do Portal de Dados Abertos da CVM (Resolução CVM 175).
+Consolida dados de fundos de investimento brasileiros do Portal de Dados Abertos da CVM.
 
 ## Instalação
 
 ```bash
-# Criar ambiente virtual
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
-
-# Instalar dependências
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ## Uso
 
 ```bash
-python main.py                    # Consolida dados (usa cache local)
-python main.py consolidate        # Mesmo que acima
-python main.py consolidate --force  # Força re-download do servidor CVM
+python main.py                      # Consolida dados (usa cache)
+python main.py consolidate --force  # Força re-download
 ```
 
-> **Nota**: O script usa cache local. Para obter dados atualizados do servidor CVM, use `--force`. A CVM atualiza os dados diariamente às 08:00h (horário de Brasília).
+> **Nota**: Para dados atualizados, use `--force`. A CVM atualiza diariamente às 08:00h.
 
-## O Que Faz
+## Arquivos de Saída
 
-Baixa e processa o arquivo `registro_fundo_classe.zip` da CVM contendo:
-- **86.878 fundos** (33.475 em funcionamento)
-- **35.411 classes de cotas** com classificação ANBIMA
-- **Dados ESG** para ~700 classes
+| Arquivo | Conteúdo |
+|---------|----------|
+| **fundos.csv** | Cadastro de fundos ativos (uma linha por fundo) |
+| **composicao_carteira.csv** | Composição da carteira (múltiplas linhas por fundo) |
 
-Exporta dois arquivos CSV:
-- `output/fundos_principais.csv` - Um fundo por linha
-- `output/fundos_classes.csv` - Uma classe por linha
+Os dois arquivos se relacionam pelo **CNPJ**.
 
-## Estrutura
+### fundos.csv (~33k fundos ativos)
 
 ```
-fundos-investimento/
-├── main.py                  # Ponto de entrada
-├── src/
-│   └── consolidador/        # Pacote de consolidação
-│       ├── config.py        # URLs e mapeamentos
-│       ├── downloader.py    # Download com cache
-│       ├── consolidator.py  # Orquestrador
-│       ├── merger.py        # Merge Fundo → Classe
-│       ├── exporter.py      # Exportação CSV
-│       └── parsers/
-│           └── rcvm175.py   # Parser RCVM175
-└── output/
-    ├── fundos_principais.csv  # ~87k fundos
-    ├── fundos_classes.csv     # ~35k classes
-    └── cache/                 # Cache de downloads
+cnpj, nome_fundo, tipo_fundo, gestor, administrador,
+custodiante, patrimonio_liquido, classificacao_anbima, publico_alvo
 ```
 
-## Dados Disponíveis
+### composicao_carteira.csv (~350k posições)
 
-### Por Tipo de Fundo
-
-| Tipo | Nome | Quantidade |
-|------|------|------------|
-| FI | Fundos de Investimento | 60.444 |
-| FIDC | Direitos Creditórios | 7.135 |
-| FIF | Fundos de Fundos | 5.229 |
-| FIP | Participações (Private Equity) | 4.203 |
-| FII | Imobiliários | 2.034 |
-| FIAGRO | Cadeias Agroindustriais | 272 |
-
-### Por Status
-
-| Status | Quantidade | % |
-|--------|------------|---|
-| Em Funcionamento Normal | 33.475 | 38,6% |
-| Cancelado | 50.528 | 58,2% |
-| Fase Pré-Operacional | 2.221 | 2,6% |
-| Em Liquidação | 638 | 0,7% |
+```
+cnpj, tipo_aplicacao, tipo_ativo, descricao_ativo,
+emissor, valor_mercado, quantidade, data_competencia
+```
 
 ## Fonte dos Dados
 
+- **Cadastro**: `registro_fundo_classe.zip` (Resolução CVM 175)
+- **Carteira**: `cda_fi_YYYYMM.zip` (Composição e Diversificação)
 - **Portal**: https://dados.cvm.gov.br
-- **Arquivo**: `registro_fundo_classe.zip` (Resolução CVM 175)
-- **Atualização**: Diária
-
----
-
-**Versão**: 5.0 | **Atualização**: Janeiro 2026

@@ -27,3 +27,8 @@ Thumbs.db
 
 # Claude
 .claude/
+
+# Google credentials (NEVER commit)
+*secret*.json
+token.json
+fundos-investimento-*.json

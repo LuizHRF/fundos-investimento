@@ -2,15 +2,21 @@
 Configuration for CVM Fund Data Consolidation System
 
 Based on CVM Resolution 175 (2023) - New fund registration framework.
-Uses registro_fundo_classe.zip as primary data source.
+Outputs:
+- fundos.csv: Fund registry + class essentials (one row per fund)
+- composicao_carteira.csv: Portfolio composition (multiple rows per fund)
 """
 from pathlib import Path
+from datetime import datetime
 
 # Base URLs
 BASE_URL = "https://dados.cvm.gov.br/dados"
 
-# Primary data source (RCVM175 - 33,475 active funds)
+# Primary data source (RCVM175 - fund registry)
 RCVM175_URL = f"{BASE_URL}/FI/CAD/DADOS/registro_fundo_classe.zip"
+
+# Portfolio composition data (CDA - Composição e Diversificação das Aplicações)
+CDA_URL_TEMPLATE = f"{BASE_URL}/FI/DOC/CDA/DADOS/cda_fi_{{yyyymm}}.zip"
 
 # CSV parsing settings (CVM standard)
 CSV_ENCODING = 'latin-1'
@@ -21,138 +27,91 @@ OUTPUT_ENCODING = 'utf-8-sig'  # BOM for Excel compatibility
 OUTPUT_DIR = Path("./output")
 CACHE_DIR = Path("./output/cache")
 
-# RCVM175 file names inside ZIP (lowercase)
+# RCVM175 file names inside ZIP
 RCVM175_FILES = {
     'fundos': 'registro_fundo.csv',
     'classes': 'registro_classe.csv',
-    'subclasses': 'registro_subclasse.csv',
+}
+
+# CDA file patterns inside ZIP
+CDA_FILES = {
+    'titulos_publicos': 'cda_fi_BLC_1_{yyyymm}.csv',
+    'cotas_fundos': 'cda_fi_BLC_2_{yyyymm}.csv',
+    'swap': 'cda_fi_BLC_3_{yyyymm}.csv',
+    'acoes': 'cda_fi_BLC_4_{yyyymm}.csv',
+    'titulos_privados': 'cda_fi_BLC_5_{yyyymm}.csv',
+    'derivativos': 'cda_fi_BLC_6_{yyyymm}.csv',
+    'investimento_exterior': 'cda_fi_BLC_7_{yyyymm}.csv',
+    'demais_ativos': 'cda_fi_BLC_8_{yyyymm}.csv',
 }
 
 # Field mapping: registro_fundo.csv -> output
-# Based on actual column names from CVM file
 FUNDO_MAPPING = {
     'ID_Registro_Fundo': 'id_fundo',
     'CNPJ_Fundo': 'cnpj',
-    'Codigo_CVM': 'codigo_cvm',
     'Denominacao_Social': 'nome_fundo',
     'Tipo_Fundo': 'tipo_fundo',
     'Situacao': 'situacao',
-    'Data_Registro': 'data_registro',
-    'Data_Constituicao': 'data_constituicao',
-    'Data_Cancelamento': 'data_cancelamento',
-    'Data_Adaptacao_RCVM175': 'data_adaptacao_rcvm175',
     'Patrimonio_Liquido': 'patrimonio_liquido',
-    'Data_Patrimonio_Liquido': 'data_patrimonio_liquido',
     'Administrador': 'administrador',
-    'CNPJ_Administrador': 'cnpj_administrador',
     'Gestor': 'gestor',
-    'CPF_CNPJ_Gestor': 'cnpj_gestor',
-    'Tipo_Pessoa_Gestor': 'tipo_pessoa_gestor',
-    'Diretor': 'diretor',
 }
 
-# Field mapping: registro_classe.csv -> output
-# Note: Taxa fields are NOT in this file (disclosed in other documents)
+# Field mapping: registro_classe.csv -> output (essentials + custodiante)
 CLASSE_MAPPING = {
-    'ID_Registro_Classe': 'id_classe',
     'ID_Registro_Fundo': 'id_fundo',
-    'CNPJ_Classe': 'cnpj_classe',
-    'Codigo_CVM': 'codigo_cvm_classe',
-    'Denominacao_Social': 'nome_classe',
-    'Tipo_Classe': 'tipo_classe',
-    'Situacao': 'situacao_classe',
-    'Classificacao': 'classificacao',
     'Classificacao_Anbima': 'classificacao_anbima',
-    'Classe_ESG': 'classe_esg',
-    'Forma_Condominio': 'forma_condominio',
     'Publico_Alvo': 'publico_alvo',
-    'Exclusivo': 'exclusivo',
-    'Indicador_Desempenho': 'indicador_desempenho',
-    'Classe_Cotas': 'classe_cotas',
-    'Tributacao_Longo_Prazo': 'tributacao_longo_prazo',
-    'Entidade_Investimento': 'entidade_investimento',
-    'Permitido_Aplicacao_CemPorCento_Exterior': 'permite_100pct_exterior',
-    'Patrimonio_Liquido': 'patrimonio_liquido_classe',
-    'Data_Patrimonio_Liquido': 'data_patrimonio_liquido_classe',
-    'Auditor': 'auditor',
-    'CNPJ_Auditor': 'cnpj_auditor',
     'Custodiante': 'custodiante',
-    'CNPJ_Custodiante': 'cnpj_custodiante',
-    'Controlador': 'controlador',
-    'CNPJ_Controlador': 'cnpj_controlador',
 }
 
-# Field mapping: registro_subclasse.csv -> output
-SUBCLASSE_MAPPING = {
-    'ID_Subclasse': 'id_subclasse',
-    'ID_Registro_Classe': 'id_classe',
-    'Denominacao_Social': 'nome_subclasse',
-    'Publico_Alvo': 'publico_alvo_subclasse',
-    'Indicador_Previdencia': 'indicador_previdencia',
-    'Indicador_INR': 'indicador_inr',
+# Field mapping: CDA files -> output
+CDA_MAPPING = {
+    'CNPJ_FUNDO_CLASSE': 'cnpj',
+    'TP_APLIC': 'tipo_aplicacao',
+    'TP_ATIVO': 'tipo_ativo',
+    'DS_ATIVO': 'descricao_ativo',
+    'EMISSOR': 'emissor',
+    'VL_MERC_POS_FINAL': 'valor_mercado',
+    'QT_POS_FINAL': 'quantidade',
+    'DT_COMPTC': 'data_competencia',
 }
 
-# Output column order for fundos_principais.csv
-OUTPUT_COLUMNS_PRINCIPAIS = [
+# Output columns for fundos.csv (one row per fund)
+OUTPUT_COLUMNS_FUNDOS = [
     'cnpj',
     'nome_fundo',
     'tipo_fundo',
-    'situacao',
-    'em_funcionamento',
     'gestor',
     'administrador',
+    'custodiante',
     'patrimonio_liquido',
     'classificacao_anbima',
-    'classe_esg',
     'publico_alvo',
-    'forma_condominio',
-    'exclusivo',
-    'data_registro',
-    'data_adaptacao_rcvm175',
-    'codigo_cvm',
-    'cnpj_gestor',
-    'cnpj_administrador',
 ]
 
-# Output column order for fundos_classes.csv
-OUTPUT_COLUMNS_CLASSES = [
+# Output columns for composicao_carteira.csv (multiple rows per fund)
+OUTPUT_COLUMNS_CARTEIRA = [
     'cnpj',
-    'cnpj_classe',
-    'nome_classe',
-    'tipo_classe',
-    'situacao_classe',
-    'classificacao_anbima',
-    'classe_esg',
-    'publico_alvo',
-    'forma_condominio',
-    'exclusivo',
-    'patrimonio_liquido_classe',
-    'auditor',
-    'custodiante',
+    'tipo_aplicacao',
+    'tipo_ativo',
+    'descricao_ativo',
+    'emissor',
+    'valor_mercado',
+    'quantidade',
+    'data_competencia',
 ]
 
-# Fund status values
+# Fund status
 STATUS_ACTIVE = 'Em Funcionamento Normal'
-STATUS_VALUES = [
-    'Em Funcionamento Normal',
-    'Fase Pré-Operacional',
-    'Em Análise',
-    'Em Situação Especial',
-    'Em Liquidação',
-    'Incorporação',
-    'Cancelado',
-]
 
-# ANBIMA Classification categories (top 10 most common)
-ANBIMA_TOP_CATEGORIES = [
-    'Multimercados Invest. no Exterior',
-    'Multimercados Livre',
-    'Renda Fixa Duração Livre Crédito Livre',
-    'Previdência Multimercado Livre',
-    'Ações Livre',
-    'Renda Fixa Duração Baixa Grau Invest.',
-    'Previdência Renda Fixa Duração Livre Crédito Livre',
-    'Ações Invest. no Exterior',
-    'Multimercados Macro',
-    'Previdência Renda Fixa Duração Baixa Grau Invest.',
-]
+
+def get_latest_cda_period():
+    """Return YYYYMM for most recent likely available CDA data."""
+    today = datetime.now()
+    # CDA is typically available 2 months behind
+    # (e.g., in Feb 2026, Dec 2025 is the latest available)
+    if today.month <= 2:
+        return f"{today.year - 1}12"
+    else:
+        return f"{today.year}{today.month - 2:02d}"
