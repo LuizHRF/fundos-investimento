@@ -191,37 +191,57 @@ def upload_file(service, file_path: Path, folder_id: str) -> str:
     """
     Upload a file to Google Drive, replacing if exists.
 
+    Uses resumable upload for large files with progress indicator.
+
     Returns the file ID.
     """
     filename = file_path.name
-    mime_type = 'text/csv'
+    file_size = file_path.stat().st_size
+    file_size_mb = file_size / (1024 * 1024)
+
+    # Determine mime type based on extension
+    if filename.endswith('.xlsx'):
+        mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    else:
+        mime_type = 'text/csv'
 
     # Check if file already exists
     existing_id = find_file_in_folder(service, folder_id, filename)
 
-    media = MediaFileUpload(str(file_path), mimetype=mime_type, resumable=False)
+    # Use resumable upload for files > 5MB
+    use_resumable = file_size > 5 * 1024 * 1024
+
+    media = MediaFileUpload(
+        str(file_path),
+        mimetype=mime_type,
+        resumable=use_resumable,
+        chunksize=10 * 1024 * 1024  # 10MB chunks
+    )
+
+    print(f"  ↑ Enviando: {filename} ({file_size_mb:.1f} MB)...")
 
     if existing_id:
         # Update existing file
-        file = service.files().update(
-            fileId=existing_id,
-            media_body=media
-        ).execute()
-        print(f"  ✓ Atualizado: {filename}")
+        request = service.files().update(fileId=existing_id, media_body=media)
     else:
         # Create new file
-        file_metadata = {
-            'name': filename,
-            'parents': [folder_id]
-        }
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id'
-        ).execute()
-        print(f"  ✓ Criado: {filename}")
+        file_metadata = {'name': filename, 'parents': [folder_id]}
+        request = service.files().create(body=file_metadata, media_body=media, fields='id')
 
-    return file.get('id')
+    # Execute with progress for resumable uploads
+    if use_resumable:
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                progress = int(status.progress() * 100)
+                print(f"    {progress}% concluído...", end='\r')
+        print(f"  ✓ {'Atualizado' if existing_id else 'Criado'}: {filename}    ")
+    else:
+        response = request.execute()
+        print(f"  ✓ {'Atualizado' if existing_id else 'Criado'}: {filename}")
+
+    return response.get('id')
 
 
 def upload_to_drive(folder_id: str) -> bool:
@@ -241,7 +261,7 @@ def upload_to_drive(folder_id: str) -> bool:
     # Files to upload
     files_to_upload = [
         OUTPUT_DIR / 'fundos.csv',
-        OUTPUT_DIR / 'composicao_carteira.csv'
+        OUTPUT_DIR / 'composicao_carteira.xlsx'
     ]
 
     # Check files exist

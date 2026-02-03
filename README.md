@@ -15,7 +15,7 @@ https://drive.google.com/drive/u/0/folders/1IdD1fcA2Ou79frCGepjH9CqMveQBP41m
 | Arquivo | Conteúdo |
 |---------|----------|
 | **fundos.csv** | Cadastro de fundos ativos (~33k fundos) |
-| **composicao_carteira.csv** | Composição da carteira (~350k posições) |
+| **composicao_carteira.xlsx** | Composição da carteira (uma aba por mês, 5 meses) |
 
 Os dois arquivos se relacionam pelo **CNPJ**.
 
@@ -26,8 +26,11 @@ cnpj, nome_fundo, tipo_fundo, gestor, administrador,
 custodiante, patrimonio_liquido, classificacao_anbima, publico_alvo
 ```
 
-### composicao_carteira.csv
+### composicao_carteira.xlsx
 
+Arquivo Excel com **uma aba por mês** (últimos 5 meses disponíveis).
+
+Cada aba contém:
 ```
 cnpj, tipo_aplicacao, tipo_ativo, descricao_ativo,
 emissor, valor_mercado, quantidade, data_competencia

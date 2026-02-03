@@ -3,14 +3,17 @@ Parser for CDA (Composição e Diversificação das Aplicações) - Portfolio co
 
 CDA files contain detailed asset holdings for each fund, with multiple rows per fund
 (one row per asset position).
+
+Supports multiple months for Excel export with one sheet per month.
 """
 import pandas as pd
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, Dict
 
 from ..config import (
     CDA_URL_TEMPLATE, CDA_FILES, CDA_MAPPING,
-    CSV_ENCODING, CSV_DELIMITER, get_latest_cda_period
+    CSV_ENCODING, CSV_DELIMITER, get_latest_cda_period, get_cda_periods,
+    CDA_MONTHS_TO_KEEP
 )
 from ..downloader import download_zip
 
@@ -104,3 +107,41 @@ def _to_float(series: Optional[pd.Series]) -> Optional[pd.Series]:
         series.astype(str).str.replace(',', '.'),
         errors='coerce'
     )
+
+
+def parse_cda_multiple(use_cache: bool = True, force: bool = False,
+                       num_months: int = None) -> Dict[str, pd.DataFrame]:
+    """
+    Download and parse CDA data for multiple months.
+
+    Args:
+        use_cache: Use cached files if available
+        force: Force re-download of all months
+        num_months: Number of months to fetch (default: CDA_MONTHS_TO_KEEP)
+
+    Returns:
+        Dictionary mapping period (YYYY-MM) to DataFrame
+    """
+    if num_months is None:
+        num_months = CDA_MONTHS_TO_KEEP
+
+    periods = get_cda_periods(num_months)
+    result = {}
+
+    print(f"\nProcessando {num_months} meses de composição da carteira...")
+    print(f"  Períodos: {', '.join(periods)}")
+
+    for yyyymm in periods:
+        # Format as YYYY-MM for sheet name
+        sheet_name = f"{yyyymm[:4]}-{yyyymm[4:]}"
+
+        df = parse_cda(yyyymm=yyyymm, use_cache=use_cache, force=force)
+
+        if df is not None and not df.empty:
+            result[sheet_name] = df
+            print(f"  ✓ {sheet_name}: {len(df):,} posições")
+        else:
+            print(f"  ⚠ {sheet_name}: Sem dados disponíveis")
+
+    print(f"\n✓ {len(result)} meses carregados com sucesso")
+    return result

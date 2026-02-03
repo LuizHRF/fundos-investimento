@@ -115,3 +115,38 @@ def get_latest_cda_period():
         return f"{today.year - 1}12"
     else:
         return f"{today.year}{today.month - 2:02d}"
+
+
+def get_cda_periods(num_months: int = 5):
+    """
+    Return list of YYYYMM periods for CDA data.
+
+    Args:
+        num_months: Number of months to include (default 5)
+
+    Returns:
+        List of YYYYMM strings, most recent first
+    """
+    periods = []
+    today = datetime.now()
+
+    # Start from 2 months ago (latest available)
+    if today.month <= 2:
+        year = today.year - 1
+        month = 12 + today.month - 2
+    else:
+        year = today.year
+        month = today.month - 2
+
+    for _ in range(num_months):
+        periods.append(f"{year}{month:02d}")
+        month -= 1
+        if month < 1:
+            month = 12
+            year -= 1
+
+    return periods
+
+
+# Number of months to keep in composicao_carteira.xlsx
+CDA_MONTHS_TO_KEEP = 5
