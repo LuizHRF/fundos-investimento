@@ -10,6 +10,7 @@ Uso:
     python main.py consolidate          # Mesmo que acima
     python main.py consolidate --force  # Força re-download
     python main.py auth                 # Autenticar com Google (uma vez)
+    python main.py refresh              # Renovar token expirado
     python main.py upload               # Upload para Google Drive
 """
 import os
@@ -35,6 +36,12 @@ def main():
         print("AUTENTICAÇÃO GOOGLE DRIVE")
         print("=" * 50)
         authenticate_interactive()
+
+    elif args[0] == 'refresh':
+        from src.consolidador.uploader import refresh_token
+
+        success = refresh_token()
+        sys.exit(0 if success else 1)
 
     elif args[0] == 'upload':
         from src.consolidador.uploader import upload_to_drive

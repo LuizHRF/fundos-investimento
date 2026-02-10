@@ -159,11 +159,17 @@ def get_credentials() -> Credentials:
 
     # Refresh if expired
     if credentials and credentials.expired and credentials.refresh_token:
-        print("Renovando token...")
-        credentials.refresh(Request())
-        # Save refreshed token
-        with open(TOKEN_FILE, 'w') as f:
-            f.write(credentials.to_json())
+        try:
+            print("Renovando token...")
+            credentials.refresh(Request())
+            # Save refreshed token
+            with open(TOKEN_FILE, 'w') as f:
+                f.write(credentials.to_json())
+            print("✓ Token renovado com sucesso!")
+        except Exception as e:
+            print(f"✗ Falha ao renovar token: {e}")
+            print("  Execute 'python main.py auth' para re-autenticar.")
+            raise RuntimeError("Token expirado e não foi possível renovar.")
 
     if not credentials or not credentials.valid:
         raise RuntimeError(
@@ -172,6 +178,51 @@ def get_credentials() -> Credentials:
         )
 
     return credentials
+
+
+def refresh_token() -> bool:
+    """
+    Explicitly refresh the OAuth2 token.
+
+    Returns:
+        True if successful, False otherwise
+    """
+    print("\n" + "=" * 50)
+    print("RENOVAÇÃO DE TOKEN")
+    print("=" * 50)
+
+    if not TOKEN_FILE.exists():
+        print("\n✗ Token não encontrado.")
+        print("  Execute 'python main.py auth' primeiro.")
+        return False
+
+    try:
+        credentials = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+
+        if not credentials.refresh_token:
+            print("\n✗ Refresh token não disponível.")
+            print("  Execute 'python main.py auth' para re-autenticar.")
+            return False
+
+        print("\nRenovando token...")
+        credentials.refresh(Request())
+
+        # Save refreshed token
+        with open(TOKEN_FILE, 'w') as f:
+            f.write(credentials.to_json())
+
+        print("\n✓ Token renovado com sucesso!")
+        print(f"\nNovo token salvo em: {TOKEN_FILE}")
+        print("\n⚠ IMPORTANTE: Atualize o secret GOOGLE_TOKEN_JSON no GitHub")
+        print("   com o conteúdo do arquivo token.json")
+
+        return True
+
+    except Exception as e:
+        print(f"\n✗ Erro ao renovar token: {e}")
+        print("\n  O refresh token pode ter sido revogado.")
+        print("  Execute 'python main.py auth' para re-autenticar.")
+        return False
 
 
 def find_file_in_folder(service, folder_id: str, filename: str) -> Optional[str]:
